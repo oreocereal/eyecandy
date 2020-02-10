@@ -1,0 +1,204 @@
+#!/bin/bash
+#Part of cobuntu-config-gui http://github.com/hedone21/cobuntu-config
+#
+# See LICENSE file for copyright and license details
+
+INTERACTIVE=True
+ASK_TO_REBOOT=0
+EXEC_PATH=/usr/bin/
+IM_SWITCH_KEY='<Shift>space'
+IM_SWITCH_KEY_BACK='<Shift><Super>space'
+USEFUL_APPS='vim git' # 유용한 앱들은 여기에 추가
+VERSION='0.1.3'
+
+argc=$#
+argv0=$0
+argv1=$1
+
+argcv()
+{
+    if [ $argc -gt 0 ];
+    then
+        if [ "$argv1" == "-h" -o "$argv1" == "--help" ];
+        then
+            echo -e "-h, --help\t도움말을 보여줍니다."
+            echo -e "-v, --version\t버전 정보를 보여줍니다."
+        fi
+        if [ "$argv1" == "-v" -o "$argv1" == "--version" ];
+        then
+            echo $VERSION
+        fi
+
+        exit 0
+    fi
+}
+
+# 윈도우 크기를 설정하는 함수
+calc_wt_size() {
+    WT_HEIGHT=12
+    WT_WIDTH=$(tput cols)
+
+    if [ -z "$WT_WIDTH" ] || [ "$WT_WIDTH" -lt 80 ]; then
+        WT_WIDTH=$(tput cols)
+    elif [ "$WT_WIDTH" -gt 160 ]; then
+        WT_WIDTH=160
+    else
+        WT_WIDTH=120
+    fi
+
+    WT_MENU_HEIGHT=$(($WT_HEIGHT-7))
+}
+
+# eyecandy 시작시 처음으로 나타나는 선택 메뉴
+main() {
+    while true; do
+        FUN=$(whiptail --title "Eyecandy 설정도구" --menu "설정 메뉴" $WT_HEIGHT $WT_WIDTH $WT_MENU_HEIGHT --cancel-button Finish --ok-button Select \
+        "1 Docky 를 설치합니다" \
+        "2 Docky 를 부팅시 실행하도록 설정합니다" \
+        "3 Numix 를 설치합니다" \
+        "4 Numix 아이콘을 설치합니다" \
+        "5 Compiz 를 설치합니다" \
+	"6 Compiz 를 설정합니다" \
+	"7 Cairo Dock 을 설치합니다" \
+	"8 Cairo Dock 을 설정합니다" \
+	"9 Concky 를 설치합니다" \
+	"10 Concky 를 실행합니다" \
+        3>&1 1>&2 2>&3)
+        RET=$?
+        if [ $RET -eq 1 ]; then
+            finish
+        elif [ $RET -eq 0 ]; then
+        case "$FUN" in
+            1\ *) do_docky_install ;;
+            2\ *) do_docky_set_startup_on_boot ;;
+            3\ *) do_numix_install ;;
+            4\ *) do_numix_circle_icon_install ;;
+            5\ *) do_compiz_install ;;
+            6\ *) do_compiz_configuration ;;
+	    7\ *) do_cairo_dock_install ;;
+	    8\ *) do_cairo_dock_configuration ;;
+	    9\ *) do_concky_install ;;
+    	    10\ *) do_concky_start ;;
+            *) whiptail --msgbox "Programmer error: unrecognized option" 10 60 1 ;;
+        esac || whiptail --msgbox "There was an error running option $FUN" 10 60 1
+        else
+            exit 1
+        fi
+    done
+}
+
+# 루트(root) 사용자로 스크립트를 실행하였는지를 검사
+enter_passwd() {
+    if [ $(id -u) -ne 0 ]; then
+        echo 이 스크립트는 루트 권한을 필요로 합니다. sudo ./eyecandy 로 실행시켜주십시오.
+        exit 1
+    fi
+}
+
+# 스크립트 종료 함수
+finish() {
+    whiptail --yesno --yes-button No --no-button Yes "변경사항을 반영하려면, 시스템을 재시작해야 합니다. 재부팅하시겠습니까?" 10 60 2
+    if [ $? -eq 1 ]; then # yes
+      sync
+      reboot
+    fi
+    exit 0
+}
+
+#
+# 설치함수
+#
+
+do_docky_install() {
+	apt-get install docky
+	#apt-get update
+}
+
+do_docky_set_startup_on_boot() {
+	
+}
+
+do_numix_install() {
+	apt-get install numix
+	#apt-get update
+}
+
+do_numix_circle_icon_install() {
+	apt-add-repository ppa:numix/ppa
+	apt-get update
+	apt-get install numix-icon-theme numix-icon-theme-circle
+}
+
+do_compiz_install() {
+	apt-get install compiz compizconfig-settings-manager compiz-fusion-plugins-extra compiz-fusion-plugins-main compiz-plugins
+}
+
+do_compiz_configuration() {
+	
+}
+
+do_cairo_dock_install() {
+	add-apt-repository ppa:cairo-dock-team/ppa
+	apt-get update
+	apt-get install cairo-dock cairo-dock-plug-ins
+}
+
+do_cairo_dock_configuration() {
+	
+}
+
+do_concky_install() {
+	apt-get install conky-all
+}
+
+do_concky_start() {
+	conky &
+}
+
+#
+# 사용자와 상호작용하지 않는 커멘드라인 옵션
+#
+
+argcv
+
+for i in $*
+do
+  case $i in
+  --memory-split)
+    OPT_MEMORY_SPLIT=GET
+    printf "Not currently supported\n"
+    exit 1
+    ;;
+  --memory-split=*)
+    OPT_MEMORY_SPLIT=`echo $i | sed 's/[-a-zA-Z0-9]*=//'`
+    printf "Not currently supported\n"
+    exit 1
+    ;;
+  --expand-rootfs)
+    INTERACTIVE=False
+    do_expand_rootfs
+    printf "Please reboot\n"
+    exit 0
+    ;;
+  --apply-os-config)
+    INTERACTIVE=False
+    do_apply_os_config
+    exit $?
+    ;;
+  *)
+    # unknown option
+    ;;
+  esac
+done
+
+calc_wt_size
+
+# Everything else needs to be run as root
+#if [ -n "${OPT_MEMORY_SPLIT:-}" ]; then
+#  set -e # Fail when a command errors
+#  set_memory_split "${OPT_MEMORY_SPLIT}"
+#  exit 0
+#fi
+
+enter_passwd
+main
